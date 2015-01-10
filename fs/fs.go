@@ -32,6 +32,7 @@ type FsInfo struct {
 	// object, then it should return a Fs which only returns that
 	// object.
 	NewFs func(name string, root string) (Fs, error)
+	NewFsFromParams func(params ...string) (Fs, error)
 	// Function to call to help with config
 	Config func(string)
 	// Options for the Fs configuration
