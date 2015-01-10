@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ncw/rclone/fs"
+	"github.com/jmcarbo/rclone/fs"
 )
 
 // Register with Fs
@@ -22,6 +22,7 @@ func init() {
 	fs.Register(&fs.FsInfo{
 		Name:  "local",
 		NewFs: NewFs,
+    NewFsFromParams: NewFsFromParams,
 	})
 }
 
@@ -60,6 +61,10 @@ func NewFs(name, root string) (fs.Fs, error) {
 	return f, nil
 }
 
+func NewFsFromParams(params ...string) (fs.Fs, error) {
+  fs, err:= NewFs("local", params[0])
+  return fs, err
+}
 // String converts this FsLocal to a string
 func (f *FsLocal) String() string {
 	return fmt.Sprintf("Local file system at %s", f.root)

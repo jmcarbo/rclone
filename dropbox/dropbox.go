@@ -30,7 +30,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ncw/rclone/fs"
+	"github.com/jmcarbo/rclone/fs"
 	"github.com/stacktic/dropbox"
 )
 
@@ -40,7 +40,7 @@ const (
 	rcloneAppSecret  = "1n9m04y2zx7bf26"
 	uploadChunkSize  = 64 * 1024                    // chunk size for upload
 	metadataLimit    = dropbox.MetadataLimitDefault // max items to fetch at once
-	datastoreName    = "rclone"
+	datastoreName    = "rclonejmca"
 	tableName        = "metadata"
 	md5sumField      = "md5sum"
 	mtimeField       = "mtime"
@@ -54,6 +54,7 @@ func init() {
 	fs.Register(&fs.FsInfo{
 		Name:   "dropbox",
 		NewFs:  NewFs,
+		NewFsFromParams:  NewFsFromParams,
 		Config: configHelper,
 		Options: []fs.Option{{
 			Name: "app_key",
@@ -142,6 +143,16 @@ func newDropbox(name string) *dropbox.Dropbox {
 	return db
 }
 
+// Makes a new dropbox from the config
+func newDropboxFromParams(appKey, appSecret string) *dropbox.Dropbox {
+	db := dropbox.NewDropbox()
+
+
+	db.SetAppInfo(appKey, appSecret)
+
+	return db
+}
+
 // NewFs contstructs an FsDropbox from the path, container:path
 func NewFs(name, root string) (fs.Fs, error) {
 	db := newDropbox(name)
@@ -152,6 +163,42 @@ func NewFs(name, root string) (fs.Fs, error) {
 
 	// Read the token from the config file
 	token := fs.ConfigFile.MustValue(name, "token")
+
+	// Authorize the client
+	db.SetAccessToken(token)
+
+	// Make a db to store rclone metadata in
+	f.datastoreManager = db.NewDatastoreManager()
+
+	// Open the datastore in the background
+	go f.openDataStore()
+
+	// See if the root is actually an object
+	entry, err := f.db.Metadata(f.slashRoot, false, false, "", "", metadataLimit)
+	if err == nil && !entry.IsDir {
+		remote := path.Base(f.root)
+		newRoot := path.Dir(f.root)
+		if newRoot == "." {
+			newRoot = ""
+		}
+		f.setRoot(newRoot)
+		obj := f.NewFsObject(remote)
+		// return a Fs Limited to this object
+		return fs.NewLimited(f, obj), nil
+	}
+
+	return f, nil
+}
+
+func NewFsFromParams(params ...string) (fs.Fs, error) {
+	db := newDropboxFromParams(params[0], params[1])
+	f := &FsDropbox{
+		db: db,
+	}
+	f.setRoot(params[3])
+
+	// Read the token from the config file
+	token := params[2]
 
 	// Authorize the client
 	db.SetAccessToken(token)
